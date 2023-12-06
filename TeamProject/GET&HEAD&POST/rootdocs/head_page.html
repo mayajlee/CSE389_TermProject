@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HEAD Page</title>
+</head>
+<body>
+    <h1>HEAD Page</h1>
+
+    <p>This page handles HEAD requests.</p>
+
+    <form id="headForm" onsubmit="sendHeadRequest(); return false;">
+        <!-- No form fields for HEAD requests -->
+        <input type="submit" value="Submit">
+    </form>
+
+    <script>
+        function sendHeadRequest() {
+            fetch("/handle_head.html", { method: "HEAD" })
+                .then(response => {
+                    console.log("Headers received:", response.headers);
+                })
+                .catch(error => console.error("Error:", error));
+        }
+    </script>
+</body>
+</html>
