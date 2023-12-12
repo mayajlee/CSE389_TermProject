@@ -62,12 +62,19 @@ public class RequestProcessor implements Runnable {
       String method = tokens[0];
       String version = "";
       if (method.equals("GET")) {
-        String fileName = tokens[1];
+    	  String fileName = tokens[1];
         if (fileName.endsWith("/")) fileName += indexFileName;
         String contentType = 
             URLConnection.getFileNameMap().getContentTypeFor(fileName);
         if (tokens.length > 2) {
           version = tokens[2];
+        }
+
+        if(authRequired(fileName)){
+          String authHeader = getAuthHeader(requestLine.toString());
+          if(!authenticate(authHeader)){
+            sendUnauthorizedResponse(out);
+          }
         }
 
         int queryIndex = fileName.indexOf('?'); // Find the index of the query parameters
@@ -77,13 +84,12 @@ public class RequestProcessor implements Runnable {
         } else {
             theFile = new File(rootDirectory, fileName.substring(1, fileName.length()));
         } 
-                  
+        
         if (theFile.canRead() 
-            // Don't let clients outside the document root
             && theFile.getCanonicalPath().startsWith(root)) {
-          byte[] theData = Files.readAllBytes(theFile.toPath());
+           byte[] theData = Files.readAllBytes(theFile.toPath());
           if (version.startsWith("HTTP/")) { // send a MIME header
-            sendHeader(out, "HTTP/1.0 200 OK", contentType, theData.length);
+            sendHeader(out, "HTTP/1.0 200 OK", "text/html; charset=utf-8", theData.length);
           } 
       
           // send the file; it may be an image or other binary data 
@@ -126,7 +132,7 @@ public class RequestProcessor implements Runnable {
             && theFile.getCanonicalPath().startsWith(root)) {
            byte[] theData = Files.readAllBytes(theFile.toPath());
           if (version.startsWith("HTTP/")) { // send a MIME header
-            sendHeader(out, "HTTP/1.0 200 OK", contentType, theData.length);
+            sendHeader(out, "HTTP/1.0 200 OK", "text/html; charset=utf-8", theData.length);
           } 
           raw.flush();
         } else { // can't find the file
@@ -149,13 +155,13 @@ public class RequestProcessor implements Runnable {
       
           // Read the headers to find the content length
           while (true) {
-              String line = readLine(in);
+              String line = ReadLine(in);
               if (line == null || line.isEmpty()) {
-                  break;
+                break;
               }
       
               if (line.startsWith("Content-Length:")) {
-                  contentLength = Integer.parseInt(line.substring("Content-Length:".length()).trim());
+                contentLength = Integer.parseInt(line.substring("Content-Length:".length()).trim());
               }
           }
       
@@ -169,48 +175,48 @@ public class RequestProcessor implements Runnable {
       
           // Store the submitted data through the for in formData 
           String nameInputValue = formData.get("nameInput");
-          String emalInputValue = formData.get("emailInput");
+          String emailInputValue = formData.get("emailInput");
           String dataInputValue = formData.get("dobInput");
           String phoneInputValue = formData.get("phoneInput");
       
           // log the form data
           logger.info(String.format("Received POST request. Name: %s, Email Address: %s, Date of Birth: %s, Phone Number: %s",
-          nameInputValue, emalInputValue, dataInputValue, phoneInputValue));
+          nameInputValue, emailInputValue, dataInputValue, phoneInputValue));
 
       
           // Respond to the browser with the message
           String response = String.format(
             "<html><body><h1>POST Request Received</h1><p>Name: %s</p><p>Email Address: %s</p><p>Date of Birth: %s</p><p>Phone Number: %s</p></body></html>",
-            nameInputValue, emalInputValue, dataInputValue, phoneInputValue);
+            nameInputValue, emailInputValue, dataInputValue, phoneInputValue);
         
           sendHeader(out, "HTTP/1.0 200 OK", "text/html; charset=utf-8", response.length());
           out.write(response);
           out.flush();
 
-      } else { // method does not equal "GET", "HEAD" or "POST"
-        String body = new StringBuilder("<HTML>\r\n")
+        } else { // method does not equal "GET", "HEAD" or "POST"
+          String body = new StringBuilder("<HTML>\r\n")
             .append("<HEAD><TITLE>Not Implemented</TITLE>\r\n")
             .append("</HEAD>\r\n")
             .append("<BODY>")
             .append("<H1>HTTP Error 501: Not Implemented</H1>\r\n")
             .append("</BODY></HTML>\r\n").toString();
-        if (version.startsWith("HTTP/")) { // send a MIME header
-          sendHeader(out, "HTTP/1.0 501 Not Implemented", 
+          if (version.startsWith("HTTP/")) { // send a MIME header
+            sendHeader(out, "HTTP/1.0 501 Not Implemented", 
                     "text/html; charset=utf-8", body.length());
+          }
+          out.write(body);
+          out.flush();
         }
-        out.write(body);
-        out.flush();
+      } catch (IOException ex) {
+        logger.log(Level.WARNING, 
+            "Error talking to " + connection.getRemoteSocketAddress(), ex);
+      } finally {
+        try {
+          connection.close();        
+        }
+        catch (IOException ex) {} 
       }
-    } catch (IOException ex) {
-      logger.log(Level.WARNING, 
-          "Error talking to " + connection.getRemoteSocketAddress(), ex);
-    } finally {
-      try {
-        connection.close();        
-      }
-      catch (IOException ex) {} 
     }
-  }
 
   private void sendHeader(Writer out, String responseCode,
       String contentType, int length)
@@ -224,7 +230,7 @@ public class RequestProcessor implements Runnable {
     out.flush();
   }
 
-  private String readLine(Reader reader) throws IOException {
+  private String ReadLine(Reader reader) throws IOException {
     StringBuilder line = new StringBuilder();
     int c;
     while ((c = reader.read()) != -1) {
@@ -257,4 +263,27 @@ public class RequestProcessor implements Runnable {
     return result;
   }
 
+  //Auth Code
+  private boolean authRequired(String fileName){
+    return fileName.startsWith("secret") || fileName.startsWith("topsecret") || fileName.startsWith("general");
+  }
+  private String getAuthHeader(String request){
+    int authBegin = request.indexOf("Authorization");
+    if(authBegin != -1) {
+      int authEnd = request.indexOf("\r\n", authBegin);
+      if (authEnd != -1) {
+        return request.substring(authBegin + "Authorization: ".length(), authEnd);
+      }
+    }
+    return null;
+  }
+  public boolean authenticate(String authHeader){
+    return authHeader != null && authHeader.equals("Basic dXNlcjpwYXNzd29yZA=="); //dummy username:password
+  }
+
+  private void sendUnauthorizedResponse(Writer out) throws IOException{
+    String body = "<html><h1>401 Authorization Required</h1></html>";
+    sendHeader(out, "HTTP/1.1 401 Unauthorized", "text/html", body.length());
+    out.write(body);
+  }
 }

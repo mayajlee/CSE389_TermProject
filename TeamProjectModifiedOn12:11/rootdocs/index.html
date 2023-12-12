@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/html">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Simple Web Server</title>
+</head>
+<body>
+    <div class = "flex justify-center bg-[#2E4057] text-white p-3">
+        <ul class = "p-2"><a href="get_page.html">Test GET</a></ul>
+        <ul class = "p-2"><a href="head_page.html">Test HEAD</a></ul>
+        <ul class = "p-2"><a href="post_page.html">Test POST</a></ul>
+    </div>
+
+    <h1 class= "text-3xl text-center m-[200px]">WELCOME TO OUR CSE 389 GROUP PROJECT</h1>
+
+    <div class = "bg-[#D9D9D9] p-2 py-[50px]">
+        <h3 class="text-center text-2xl m-[20px]">TEST REQUEST</h3>
+        <div class = "flex justify-center ">
+            <div class = "bg-white m-[10px] px-[100px] py-[50px] rounded-lg text-xl"><a href="get_page.html">GET</a></div>
+            <div class = "bg-white px-[100px] py-[50px] m-[10px] rounded-lg text-xl"><a href="head_page.html">HEAD</a></div>
+            <div class = "bg-white px-[100px] py-[50px] m-[10px] rounded-lg text-xl"><a href="post_page.html">POST</a></div>
+        </div>
+    </div>
+
+    <div class = "p-2">
+        <h3 class="text-center text-2xl m-[20px]"><a href="log_in.html">TEST AUTHORIZATION</a></h3>
+        <div class = "flex justify-center ">
+            <div class = "bg-[#2E4057] m-[10px] px-[100px] py-[50px] rounded-lg text-xl text-white auth-btn"><button onclick="authenticate('general')">General</button></div>
+            <div class = "bg-[#2E4057] px-[100px] py-[50px] m-[10px] rounded-lg text-xl text-white auth-btn"><button onclick="authenticate('secret')">Secret</button></div>
+            <div class = "bg-[#2E4057] px-[100px] py-[50px] m-[10px] rounded-lg text-xl text-white auth-btn"><button onclick="authenticate('top secret')">Top Secret</button></div>
+        </div>
+    </div>
+    <script src="index.js"></script>
+</body>
+</html>

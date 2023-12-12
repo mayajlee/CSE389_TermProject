@@ -46,15 +46,15 @@ public class Auth {
     }
 
     public void addUser(String username, String password){
-       JSONObject newUser = new JSONObject();
+        JSONObject newUser = new JSONObject();
 
-       newUser.put("username", username);
-       newUser.put("password", password);
-       newUser.put("authLvl", "General"); //Default
+        newUser.put("username", username);
+        newUser.put("password", password);
+        newUser.put("authLvl", "General"); //Default
         users.add(newUser);
     }
 
-//    public void authorizationCheck (String user, String password, String docRequest) {
+    //    public void authorizationCheck (String user, String password, String docRequest) {
 //        String authLvl;
 //        String docName = docRequest;
 //
@@ -139,4 +139,5 @@ public class Auth {
 
     }
 }
+
 
