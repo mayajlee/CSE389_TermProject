@@ -15,6 +15,8 @@ public class RequestProcessor implements Runnable {
   private File rootDirectory;
   private String indexFileName = "index.html";
   private Socket connection;
+  private boolean unauthenticatedRequest = false;
+  private Writer out = null;
 
   public RequestProcessor(File rootDirectory, 
       String indexFileName, Socket connection) {
@@ -40,8 +42,8 @@ public class RequestProcessor implements Runnable {
     try {              
       OutputStream raw = new BufferedOutputStream(
                           connection.getOutputStream()
-                         );         
-      Writer out = new OutputStreamWriter(raw);
+                         );
+      out = new OutputStreamWriter(raw);
       Reader in = new InputStreamReader(
                    new BufferedInputStream(
                     connection.getInputStream()
@@ -53,9 +55,11 @@ public class RequestProcessor implements Runnable {
         if (c == '\r' || c == '\n') break;
         requestLine.append((char) c);
       }
-      
+
       String get = requestLine.toString();
-      
+      String authHeader = getAuthHeader(requestLine.toString());
+
+
       logger.info(connection.getRemoteSocketAddress() + " " + get);
       
       String[] tokens = get.split("\\s+");
@@ -71,50 +75,52 @@ public class RequestProcessor implements Runnable {
         }
 
         if(authRequired(fileName)){
-          String authHeader = getAuthHeader(requestLine.toString());
-          if(!authenticate(authHeader)){
+          if(authHeader == null || !authenticate(authHeader)){
+            unauthenticatedRequest = true;
             sendUnauthorizedResponse(out);
+            return;
           }
         }
-
-        int queryIndex = fileName.indexOf('?'); // Find the index of the query parameters
-        File theFile;
-        if (queryIndex != -1) {
+        else {
+          int queryIndex = fileName.indexOf('?'); // Find the index of the query parameters
+          File theFile;
+          if (queryIndex != -1) {
             theFile = new File(rootDirectory, fileName.substring(1, queryIndex));
-        } else {
+          } else {
             theFile = new File(rootDirectory, fileName.substring(1, fileName.length()));
-        } 
-        
-        if (theFile.canRead() 
-            && theFile.getCanonicalPath().startsWith(root)) {
-           byte[] theData = Files.readAllBytes(theFile.toPath());
-          if (version.startsWith("HTTP/")) { // send a MIME header
-            sendHeader(out, "HTTP/1.0 200 OK", "text/html; charset=utf-8", theData.length);
-          } 
-      
-          // send the file; it may be an image or other binary data 
-          // so use the underlying output stream 
-          // instead of the writer
-          raw.write(theData);
-          raw.flush();
-        } else { // can't find the file
-          String body = new StringBuilder("<HTML>\r\n")
-              .append("<HEAD><TITLE>File Not Found</TITLE>\r\n")
-              .append("</HEAD>\r\n")
-              .append("<BODY>")
-              .append("<H1>HTTP Error 404: File Not Found</H1>\r\n")
-              .append("</BODY></HTML>\r\n").toString();
-          if (version.startsWith("HTTP/")) { // send a MIME header
-            sendHeader(out, "HTTP/1.0 404 File Not Found", 
-                "text/html; charset=utf-8", body.length());
-          } 
-          out.write(body);
-          out.flush();
+          }
+
+          if (theFile.canRead()
+                  && theFile.getCanonicalPath().startsWith(root)) {
+            byte[] theData = Files.readAllBytes(theFile.toPath());
+            if (version.startsWith("HTTP/")) { // send a MIME header
+              sendHeader(out, "HTTP/1.0 200 OK", "text/html; charset=utf-8", theData.length);
+            }
+
+            // send the file; it may be an image or other binary data
+            // so use the underlying output stream
+            // instead of the writer
+            raw.write(theData);
+            raw.flush();
+          } else { // can't find the file
+            String body = new StringBuilder("<HTML>\r\n")
+                    .append("<HEAD><TITLE>File Not Found</TITLE>\r\n")
+                    .append("</HEAD>\r\n")
+                    .append("<BODY>")
+                    .append("<H1>HTTP Error 404: File Not Found</H1>\r\n")
+                    .append("</BODY></HTML>\r\n").toString();
+            if (version.startsWith("HTTP/")) { // send a MIME header
+              sendHeader(out, "HTTP/1.0 404 File Not Found",
+                      "text/html; charset=utf-8", body.length());
+            }
+            out.write(body);
+            out.flush();
+          }
         }
       } else if (method.equals("HEAD")) {
     	  String fileName = tokens[1];
         if (fileName.endsWith("/")) fileName += indexFileName;
-        String contentType = 
+        String contentType =
             URLConnection.getFileNameMap().getContentTypeFor(fileName);
         if (tokens.length > 2) {
           version = tokens[2];
@@ -126,14 +132,14 @@ public class RequestProcessor implements Runnable {
             theFile = new File(rootDirectory, fileName.substring(1, queryIndex));
         } else {
             theFile = new File(rootDirectory, fileName.substring(1, fileName.length()));
-        } 
-        
-        if (theFile.canRead() 
+        }
+
+        if (theFile.canRead()
             && theFile.getCanonicalPath().startsWith(root)) {
            byte[] theData = Files.readAllBytes(theFile.toPath());
           if (version.startsWith("HTTP/")) { // send a MIME header
             sendHeader(out, "HTTP/1.0 200 OK", "text/html; charset=utf-8", theData.length);
-          } 
+          }
           raw.flush();
         } else { // can't find the file
         	String body = new StringBuilder("<HTML>\r\n")
@@ -143,9 +149,9 @@ public class RequestProcessor implements Runnable {
               .append("<H1>HTTP Error 404: File Not Found</H1>\r\n")
               .append("</BODY></HTML>\r\n").toString();
           if (version.startsWith("HTTP/")) { // send a MIME header
-            sendHeader(out, "HTTP/1.0 404 File Not Found", 
+            sendHeader(out, "HTTP/1.0 404 File Not Found",
                 "text/html; charset=utf-8", body.length());
-          } 
+          }
             out.write(body);
             out.flush();
           }
@@ -201,7 +207,7 @@ public class RequestProcessor implements Runnable {
             .append("<H1>HTTP Error 501: Not Implemented</H1>\r\n")
             .append("</BODY></HTML>\r\n").toString();
           if (version.startsWith("HTTP/")) { // send a MIME header
-            sendHeader(out, "HTTP/1.0 501 Not Implemented", 
+            sendHeader(out, "HTTP/1.0 501 Not Implemented",
                     "text/html; charset=utf-8", body.length());
           }
           out.write(body);
@@ -212,6 +218,12 @@ public class RequestProcessor implements Runnable {
             "Error talking to " + connection.getRemoteSocketAddress(), ex);
       } finally {
         try {
+          if(out != null){
+            if (unauthenticatedRequest) {
+              sendUnauthorizedResponse(out);
+              return;
+            }
+          }
           connection.close();        
         }
         catch (IOException ex) {} 
@@ -265,25 +277,45 @@ public class RequestProcessor implements Runnable {
 
   //Auth Code
   private boolean authRequired(String fileName){
-    return fileName.startsWith("secret") || fileName.startsWith("topsecret") || fileName.startsWith("general");
+    return fileName.startsWith("/secret") || fileName.startsWith("/topsecret") || fileName.startsWith("/general");
   }
   private String getAuthHeader(String request){
-    int authBegin = request.indexOf("Authorization");
-    if(authBegin != -1) {
-      int authEnd = request.indexOf("\r\n", authBegin);
-      if (authEnd != -1) {
-        return request.substring(authBegin + "Authorization: ".length(), authEnd);
+    System.out.println("Full request: " + request); // Print the full request for debugging
+    String[] lines = request.split("\r\n");
+    for (String line : lines) {
+      if (line.startsWith("Authorization:")) {
+        return line.substring("Authorization:".length()).trim();
       }
     }
     return null;
   }
   public boolean authenticate(String authHeader){
-    return authHeader != null && authHeader.equals("Basic dXNlcjpwYXNzd29yZA=="); //dummy username:password
+    System.out.println(authHeader);
+    if (authHeader != null && authHeader.startsWith("Basic ")) {
+      try {
+        String encodedCredentials = authHeader.substring("Basic ".length()).trim();
+        String decodedCredentials = new String(Base64.getDecoder().decode(encodedCredentials), StandardCharsets.UTF_8);
+        String[] credentials = decodedCredentials.split(":");
+
+        // Replace the following line with your actual authentication logic
+        return "user".equals(credentials[0]) && "password".equals(credentials[1]);
+
+      } catch (Exception e) {
+        // Handle decoding or other exceptions as needed
+        return false;
+      }
+    }
+    return false;
   }
 
   private void sendUnauthorizedResponse(Writer out) throws IOException{
-    String body = "<html><h1>401 Authorization Required</h1></html>";
-    sendHeader(out, "HTTP/1.1 401 Unauthorized", "text/html", body.length());
-    out.write(body);
+    out.write("HTTP/1.1 401 Unauthorized" + "\r\n");
+    out.write("WWW-Authenticate: Basic realm=\"Password Realm\"\r\n");
+    Date now = new Date();
+    out.write("Date: " + now + "\r\n");
+    out.write("Server: JHTTP 2.0\r\n");
+    out.write("Content-length: " + 0 + "\r\n");
+    out.write("Content-type: text/html\r\n\r\n");
+    out.flush();
   }
 }
