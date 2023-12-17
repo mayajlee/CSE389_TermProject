@@ -50,6 +50,8 @@ public class RequestProcessor implements Runnable {
                    ),"US-ASCII"
                   );
       StringBuilder requestLine = new StringBuilder();
+      System.out.println(requestLine.toString());
+
       while (true) {
         int c = in.read();
         if (c == '\r' || c == '\n') break;
@@ -75,7 +77,7 @@ public class RequestProcessor implements Runnable {
         }
 
         if(authRequired(fileName)){
-          if(authHeader == null || !authenticate(authHeader)){
+          if(authHeader == null || !authenticate(authHeader, fileName)){
             unauthenticatedRequest = true;
             sendUnauthorizedResponse(out);
             return;
@@ -162,6 +164,7 @@ public class RequestProcessor implements Runnable {
           // Read the headers to find the content length
           while (true) {
               String line = ReadLine(in);
+              System.out.println(line);
               if (line == null || line.isEmpty()) {
                 break;
               }
@@ -276,9 +279,12 @@ public class RequestProcessor implements Runnable {
   }
 
   //Auth Code
+  //checks whether get request can be filled without authorization given a filename
   private boolean authRequired(String fileName){
     return fileName.startsWith("/secret") || fileName.startsWith("/topsecret") || fileName.startsWith("/general");
   }
+
+  //retrieve auth header which contains encoded username and password
   private String getAuthHeader(String request){
     System.out.println("Full request: " + request); // Print the full request for debugging
     String[] lines = request.split("\r\n");
@@ -289,16 +295,40 @@ public class RequestProcessor implements Runnable {
     }
     return null;
   }
-  public boolean authenticate(String authHeader){
+  public boolean authenticate(String authHeader, String fileName){
     System.out.println(authHeader);
+    System.out.println(fileName);
+    //list of accepted user names in passwords
+    HashMap<String, String> users = new HashMap<String, String>();
+    users.put("user", "password");
+    users.put("sara123", "abc123");
+    users.put("exUser", "exPassword");
+    users.put("maya", "lee");
+    users.put("authTest", "authPass");
+    users.put("getTest", "getPass");
+
+    //list of ranks and users
+    List<String> topSecretUsers = Arrays.asList("users", "getTest");
+    //symbolizes the auth relationship in presentation: User can see all auth levels below
+    List<String> secretUsers = Arrays.asList("sara123", "maya", "users", "getTest");
+
     if (authHeader != null && authHeader.startsWith("Basic ")) {
       try {
+        //Decode auth header to retrieve username and password
         String encodedCredentials = authHeader.substring("Basic ".length()).trim();
         String decodedCredentials = new String(Base64.getDecoder().decode(encodedCredentials), StandardCharsets.UTF_8);
         String[] credentials = decodedCredentials.split(":");
-
-        // Replace the following line with your actual authentication logic
-        return "user".equals(credentials[0]) && "password".equals(credentials[1]);
+        //credentials[0] = username credentials[1]=password
+        if(users.containsKey(credentials[0]) && users.get(credentials[0]).equals(credentials[1])){
+          if (fileName.startsWith("/general")){
+            return true;
+          } else if (fileName.startsWith("/secret") && secretUsers.contains(credentials[0])){
+            return true;
+          } else if (fileName.startsWith("/topsecret") && topSecretUsers.contains(credentials[0])) {
+            return true;
+          }
+          return false;
+        }
 
       } catch (Exception e) {
         // Handle decoding or other exceptions as needed
@@ -308,13 +338,24 @@ public class RequestProcessor implements Runnable {
     return false;
   }
 
+  //prompts user to enter their username and password.
   private void sendUnauthorizedResponse(Writer out) throws IOException{
     out.write("HTTP/1.1 401 Unauthorized" + "\r\n");
     out.write("WWW-Authenticate: Basic realm=\"Password Realm\"\r\n");
     Date now = new Date();
     out.write("Date: " + now + "\r\n");
     out.write("Server: JHTTP 2.0\r\n");
-    out.write("Content-length: " + 0 + "\r\n");
+    out.write("Content-length: " + 100 + "\r\n");
+    out.write("Content-type: text/html\r\n\r\n");
+    out.flush();
+  }
+
+  private void sendAuthRejectResponse(Writer out) throws IOException{
+    out.write("HTTP/1.1 403 Forbidden" + "\r\n");
+    Date now = new Date();
+    out.write("Date: " + now + "\r\n");
+    out.write("Server: JHTTP 2.0\r\n");
+    out.write("Content-length: " + 100 + "\r\n");
     out.write("Content-type: text/html\r\n\r\n");
     out.flush();
   }
