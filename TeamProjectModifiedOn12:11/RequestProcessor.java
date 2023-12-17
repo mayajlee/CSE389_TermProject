@@ -50,7 +50,7 @@ public class RequestProcessor implements Runnable {
                    ),"US-ASCII"
                   );
       StringBuilder requestLine = new StringBuilder();
-      System.out.println(requestLine.toString());
+
 
       while (true) {
         int c = in.read();
@@ -76,8 +76,10 @@ public class RequestProcessor implements Runnable {
           version = tokens[2];
         }
 
+        logger.info("Checking if authetication/authorization is needed");
         if(authRequired(fileName)){
           if(authHeader == null || !authenticate(authHeader, fileName)){
+            logger.info("Prompt user to log in and send header");
             unauthenticatedRequest = true;
             sendUnauthorizedResponse(out);
             return;
@@ -164,7 +166,6 @@ public class RequestProcessor implements Runnable {
           // Read the headers to find the content length
           while (true) {
               String line = ReadLine(in);
-              System.out.println(line);
               if (line == null || line.isEmpty()) {
                 break;
               }
@@ -286,7 +287,6 @@ public class RequestProcessor implements Runnable {
 
   //retrieve auth header which contains encoded username and password
   private String getAuthHeader(String request){
-    System.out.println("Full request: " + request); // Print the full request for debugging
     String[] lines = request.split("\r\n");
     for (String line : lines) {
       if (line.startsWith("Authorization:")) {
@@ -296,6 +296,7 @@ public class RequestProcessor implements Runnable {
     return null;
   }
   public boolean authenticate(String authHeader, String fileName){
+    logger.info("Authenticating user using encoded user credentials");
     System.out.println(authHeader);
     System.out.println(fileName);
     //list of accepted user names in passwords
@@ -320,6 +321,7 @@ public class RequestProcessor implements Runnable {
         String[] credentials = decodedCredentials.split(":");
         //credentials[0] = username credentials[1]=password
         if(users.containsKey(credentials[0]) && users.get(credentials[0]).equals(credentials[1])){
+          logger.info("Authentication passed now checking authorization");
           if (fileName.startsWith("/general")){
             return true;
           } else if (fileName.startsWith("/secret") && secretUsers.contains(credentials[0])){
@@ -332,9 +334,11 @@ public class RequestProcessor implements Runnable {
 
       } catch (Exception e) {
         // Handle decoding or other exceptions as needed
+        logger.info("Error with decoding");
         return false;
       }
     }
+    logger.info("Authentication failed");
     return false;
   }
 
