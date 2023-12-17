@@ -13,7 +13,7 @@ public class RequestProcessor implements Runnable {
       RequestProcessor.class.getCanonicalName());
 
   private File rootDirectory;
-  private String indexFileName = "index.html";
+  private String indexFileName = "/index.html";
   private Socket connection;
   private boolean unauthenticatedRequest = false;
   private Writer out = null;
