@@ -59,7 +59,7 @@ public class RequestProcessor implements Runnable {
       }
 
       String get = requestLine.toString();
-      String authHeader = getAuthHeader(requestLine.toString());
+      String cred = getCredentials(requestLine.toString());
 
 
       logger.info(connection.getRemoteSocketAddress() + " " + get);
@@ -68,7 +68,7 @@ public class RequestProcessor implements Runnable {
       String method = tokens[0];
       String version = "";
       if (method.equals("GET")) {
-    	  String fileName = tokens[1];
+        String fileName = tokens[1];
         if (fileName.endsWith("/")) fileName += indexFileName;
         String contentType = 
             URLConnection.getFileNameMap().getContentTypeFor(fileName);
@@ -76,13 +76,11 @@ public class RequestProcessor implements Runnable {
           version = tokens[2];
         }
 
-        logger.info("Checking if authetication/authorization is needed");
-        if(authRequired(fileName)){
-          if(authHeader == null || !authenticate(authHeader, fileName)){
+        logger.info("Checking if authentication/authorization is needed");
+        if(authRequired(fileName) && !authenticate(cred, fileName)){
             logger.info("Prompt user to log in and send header");
             sendUnauthorizedResponse(out);
             return;
-          }
         }
           int queryIndex = fileName.indexOf('?'); // Find the index of the query parameters
           File theFile;
@@ -282,7 +280,16 @@ public class RequestProcessor implements Runnable {
     return fileName.startsWith("/secret") || fileName.startsWith("/topsecret") || fileName.startsWith("/general");
   }
 
-  //retrieve auth header which contains encoded username and password
+
+  //gets non encoded credentials from the get requested
+  private String getCredentials(String request){
+    int queryIndex = request.indexOf("?");
+    String query = request.substring(queryIndex);
+    String[] cred = query.split("&");
+    return cred[0].split("=")[1] + ":" + cred[1].split("=")[1];
+  }
+
+  //retrieve auth header which contains encoded username and password - would normally be used
   private String getAuthHeader(String request){
     String[] lines = request.split("\r\n");
     for (String line : lines) {
@@ -292,9 +299,8 @@ public class RequestProcessor implements Runnable {
     }
     return null;
   }
-  public boolean authenticate(String authHeader, String fileName){
+  public boolean authenticate(String credentials, String fileName){
     logger.info("Authenticating user using encoded user credentials");
-    System.out.println(authHeader);
     System.out.println(fileName);
     //list of accepted user names in passwords
     HashMap<String, String> users = new HashMap<String, String>();
@@ -310,20 +316,21 @@ public class RequestProcessor implements Runnable {
     //symbolizes the auth relationship in presentation: User can see all auth levels below
     List<String> secretUsers = Arrays.asList("sara123", "maya", "users", "getTest");
 
-    if (authHeader != null && authHeader.startsWith("Basic ")) {
+    //if (authHeader != null && authHeader.startsWith("Basic ")) {
+    if (credentials != null) {
       try {
         //Decode auth header to retrieve username and password
-        String encodedCredentials = authHeader.substring("Basic ".length()).trim();
-        String decodedCredentials = new String(Base64.getDecoder().decode(encodedCredentials), StandardCharsets.UTF_8);
-        String[] credentials = decodedCredentials.split(":");
+        //String encodedCredentials = authHeader.substring("Basic ".length()).trim();
+        //String decodedCredentials = new String(Base64.getDecoder().decode(encodedCredentials), StandardCharsets.UTF_8);
+        String[] cred = credentials.split(":");
         //credentials[0] = username credentials[1]=password
-        if(users.containsKey(credentials[0]) && users.get(credentials[0]).equals(credentials[1])){
+        if(users.containsKey(cred[0]) && users.get(cred[0]).equals(cred[1])){
           logger.info("Authentication passed now checking authorization");
           if (fileName.startsWith("/general")){
             return true;
-          } else if (fileName.startsWith("/secret") && secretUsers.contains(credentials[0])){
+          } else if (fileName.startsWith("/secret") && secretUsers.contains(cred[0])){
             return true;
-          } else if (fileName.startsWith("/topsecret") && topSecretUsers.contains(credentials[0])) {
+          } else if (fileName.startsWith("/topsecret") && topSecretUsers.contains(cred[0])) {
             return true;
           }
           return false;
