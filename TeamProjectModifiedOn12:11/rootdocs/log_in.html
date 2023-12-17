@@ -9,7 +9,7 @@
 <body>
     <div class="text-center border-[#2E4057] border-[20px] m-[25%] min-w-[500px] ">
         <h2 class="text-3xl my-[15px]">LOGIN</h2>
-        <form onsubmit="formatCred()" id="login" action="handle_login.html" method="post">
+        <form onsubmit="formatCred()" id="login" action="/general.html?formatCred()" method="get">
             <label class="my-[10px]" for="username">Username:</label>
             <input class="my-[10px] border-[1px] border-[#2E4057] p-[5px] rounded-full" type="text" id="username" name="username" required>
             <br>
@@ -24,8 +24,19 @@
                 var username = document.getElementById("username").value;
                 var password = document.getElementById("password").value;
 
+                var url = 'http://localhost:80';
+
                 var enCred = btoa(username + ":" + password);
-                document.getElementById("loginForm").submit();
+                var requestOptions = {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': 'Basic ' + enCred,
+                        'Content-Type': 'application/json' // Set the content type based on your request
+                    },
+                };
+
+                return 'Basic ' + enCred;
+
             }
         </script>
     </div>

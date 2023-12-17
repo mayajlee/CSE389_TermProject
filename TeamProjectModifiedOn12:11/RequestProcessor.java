@@ -80,12 +80,10 @@ public class RequestProcessor implements Runnable {
         if(authRequired(fileName)){
           if(authHeader == null || !authenticate(authHeader, fileName)){
             logger.info("Prompt user to log in and send header");
-            unauthenticatedRequest = true;
             sendUnauthorizedResponse(out);
             return;
           }
         }
-        else {
           int queryIndex = fileName.indexOf('?'); // Find the index of the query parameters
           File theFile;
           if (queryIndex != -1) {
@@ -119,7 +117,6 @@ public class RequestProcessor implements Runnable {
             }
             out.write(body);
             out.flush();
-          }
         }
       } else if (method.equals("HEAD")) {
     	  String fileName = tokens[1];
