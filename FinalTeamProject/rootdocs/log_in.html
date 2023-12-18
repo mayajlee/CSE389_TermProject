@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Login Page</title>
+</head>
+<body>
+    <div class="text-center border-[#2E4057] border-[20px] m-[25%] min-w-[500px] ">
+        <h2 class="text-3xl my-[15px]">LOGIN</h2>
+        <form onsubmit="formatCred()" id="login" action="/general.html?" method="get">
+            <label class="my-[10px]" for="username">Username:</label>
+            <input class="my-[10px] border-[1px] border-[#2E4057] p-[5px] rounded-full" type="text" id="username" name="username" required>
+            <br>
+            <label class="my-[10px]" for="password">Password:</label>
+            <input class="my-[10px] border-[1px] border-[#2E4057] rounded-full p-[5px]" type="password" id="password" name="password" required>
+            <br>
+            <input class = "bg-[#2E4057] px-[30px] py-[10px] rounded-full text-white mb-[10px] p-[5px]" type="submit" value="Login">
+        </form>
+
+        <script>
+            function formatCred(){
+                var username = document.getElementById("username").value;
+                var password = document.getElementById("password").value;
+
+                var url = 'http://localhost:80';
+
+                var enCred = btoa(username + ":" + password);
+                var requestOptions = {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': 'Basic ' + enCred,
+                        'Content-Type': 'application/json' // Set the content type based on your request
+                    },
+                };
+
+                return 'Basic ' + enCred;
+
+            }
+        </script>
+    </div>
+</body>
+</html>
