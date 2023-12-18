@@ -59,7 +59,7 @@ public class RequestProcessor implements Runnable {
       }
 
       String get = requestLine.toString();
-      String authHeader = getAuthHeader(requestLine.toString());
+      System.out.println("request line: "+ requestLine);
 
 
       logger.info(connection.getRemoteSocketAddress() + " " + get);
@@ -77,10 +77,12 @@ public class RequestProcessor implements Runnable {
         }
 
         logger.info("Checking if authetication/authorization is needed");
+
         if(authRequired(fileName)){
+          String authHeader = getCredentials(fileName);
           if(authHeader == null || !authenticate(authHeader, fileName)){
             logger.info("Prompt user to log in and send header");
-            sendUnauthorizedResponse(out);
+            sendAuthRejectResponse(out);
             return;
           }
         }
@@ -282,6 +284,19 @@ public class RequestProcessor implements Runnable {
     return fileName.startsWith("/secret") || fileName.startsWith("/topsecret") || fileName.startsWith("/general");
   }
 
+  //gets non encoded credentials from the get requested
+  private String getCredentials(String request){
+    int queryIndex = request.indexOf("?");
+    if (queryIndex != -1 || queryIndex == request.length()-1){
+      String query = request.substring(queryIndex);
+      String[] cred = query.split("&");
+      String creds = cred[0].split("=")[1] + ":" + cred[1].split("=")[1];
+      System.out.println("creds:" + creds);
+      return creds;
+    }
+    return null;
+  }
+
   //retrieve auth header which contains encoded username and password
   private String getAuthHeader(String request){
     String[] lines = request.split("\r\n");
@@ -294,8 +309,8 @@ public class RequestProcessor implements Runnable {
   }
   public boolean authenticate(String authHeader, String fileName){
     logger.info("Authenticating user using encoded user credentials");
-    System.out.println(authHeader);
-    System.out.println(fileName);
+    System.out.println("auth: " + authHeader);
+    System.out.println("file: " + fileName);
     //list of accepted user names in passwords
     HashMap<String, String> users = new HashMap<String, String>();
     users.put("user", "password");
@@ -306,24 +321,29 @@ public class RequestProcessor implements Runnable {
     users.put("getTest", "getPass");
 
     //list of ranks and users
-    List<String> topSecretUsers = Arrays.asList("users", "getTest");
+    List<String> topSecretUsers = Arrays.asList("exUser", "getTest");
     //symbolizes the auth relationship in presentation: User can see all auth levels below
-    List<String> secretUsers = Arrays.asList("sara123", "maya", "users", "getTest");
+    List<String> secretUsers = Arrays.asList("sara123", "maya", "users", "getTest", "exUser");
 
-    if (authHeader != null && authHeader.startsWith("Basic ")) {
+    if (authHeader != null) {
       try {
         //Decode auth header to retrieve username and password
-        String encodedCredentials = authHeader.substring("Basic ".length()).trim();
-        String decodedCredentials = new String(Base64.getDecoder().decode(encodedCredentials), StandardCharsets.UTF_8);
-        String[] credentials = decodedCredentials.split(":");
+        //String encodedCredentials = authHeader.substring("Basic ".length()).trim();
+        //String decodedCredentials = new String(Base64.getDecoder().decode(encodedCredentials), StandardCharsets.UTF_8);
+        String[] credentials = authHeader.split(":");
         //credentials[0] = username credentials[1]=password
+        System.out.println(credentials[0]);
+        System.out.println(credentials[1]);
         if(users.containsKey(credentials[0]) && users.get(credentials[0]).equals(credentials[1])){
           logger.info("Authentication passed now checking authorization");
           if (fileName.startsWith("/general")){
+            logger.info("General Success");
             return true;
           } else if (fileName.startsWith("/secret") && secretUsers.contains(credentials[0])){
+            logger.info("Secret Success");
             return true;
           } else if (fileName.startsWith("/topsecret") && topSecretUsers.contains(credentials[0])) {
+            logger.info("Top Secret Success");
             return true;
           }
           return false;
